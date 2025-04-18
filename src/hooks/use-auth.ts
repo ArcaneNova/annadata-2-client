@@ -5,7 +5,7 @@ interface User {
   id: string;
   name: string;
   email: string;
-  role: 'consumer' | 'vendor' | 'admin';
+  role: 'consumer' | 'vendor' | 'farmer'; // Updated to match the API response roles
 }
 
 interface AuthState {
@@ -68,4 +68,4 @@ export const useAuth = create<AuthState>()(
       }
     }
   )
-); 
+);

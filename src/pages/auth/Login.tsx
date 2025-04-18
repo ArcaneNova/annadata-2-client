@@ -11,6 +11,7 @@ import { toast } from "@/hooks/use-toast";
 import { Eye, EyeOff, Lock, Mail, Smartphone, ArrowRight, Leaf, ShoppingCart, Users } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import PublicRoute from "@/components/PublicRoute";
+import { useAuth } from "@/hooks/use-auth";
 
 // Define user type
 interface User {
@@ -49,94 +50,103 @@ const Login = () => {
   const handleUserTypeChange = (value: "farmer" | "vendor" | "consumer") => {
     setUserType(value);
   };
+
+// Add this at the top of your component
+const { setUser, setToken } = useAuth();
+
+// Then replace your handleSubmit function with this:
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setIsLoading(true);
   
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    
-    // Form validation
-    if (loginMethod === "email" && !formData.email) {
-      toast({
-        title: "Error",
-        description: "Please enter your email address",
-        variant: "destructive",
-      });
-      setIsLoading(false);
-      return;
+  // Form validation
+  if (loginMethod === "email" && !formData.email) {
+    toast({
+      title: "Error",
+      description: "Please enter your email address",
+      variant: "destructive",
+    });
+    setIsLoading(false);
+    return;
+  }
+  
+  if (loginMethod === "phone" && !formData.phone) {
+    toast({
+      title: "Error",
+      description: "Please enter your phone number",
+      variant: "destructive",
+    });
+    setIsLoading(false);
+    return;
+  }
+  
+  if (!formData.password) {
+    toast({
+      title: "Error",
+      description: "Please enter your password",
+      variant: "destructive",
+    });
+    setIsLoading(false);
+    return;
+  }
+  
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/login/${userType}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: loginMethod === "email" ? formData.email : undefined,
+        phone: loginMethod === "phone" ? formData.phone : undefined,
+        password: formData.password,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Login failed');
+    }
+
+    // Store in zustand store AND localStorage
+    setToken(data.token);
+    setUser({
+      id: data.user._id,  // Ensure the ID field name matches
+      name: data.user.name,
+      email: data.user.email,
+      role: data.user.role
+    });
+
+    // If remember me is checked, store credentials
+    if (formData.rememberMe) {
+      localStorage.setItem('rememberedCredential', loginMethod === "email" ? formData.email : formData.phone);
+      localStorage.setItem('rememberedMethod', loginMethod);
+      localStorage.setItem('rememberedUserType', userType);
+    } else {
+      // Clear remembered credentials if not checked
+      localStorage.removeItem('rememberedCredential');
+      localStorage.removeItem('rememberedMethod');
+      localStorage.removeItem('rememberedUserType');
     }
     
-    if (loginMethod === "phone" && !formData.phone) {
-      toast({
-        title: "Error",
-        description: "Please enter your phone number",
-        variant: "destructive",
-      });
-      setIsLoading(false);
-      return;
-    }
+    toast({
+      title: "Login Successful",
+      description: "Welcome back to Annadata Harmony!",
+    });
     
-    if (!formData.password) {
-      toast({
-        title: "Error",
-        description: "Please enter your password",
-        variant: "destructive",
-      });
-      setIsLoading(false);
-      return;
-    }
-    
-    try {
-      const response = await fetch(`${API_BASE_URL}/auth/login/${userType}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: loginMethod === "email" ? formData.email : undefined,
-          phone: loginMethod === "phone" ? formData.phone : undefined,
-          password: formData.password,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Login failed');
-      }
-
-      // Store JWT token and user data in localStorage
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-
-      // If remember me is checked, store credentials
-      if (formData.rememberMe) {
-        localStorage.setItem('rememberedCredential', loginMethod === "email" ? formData.email : formData.phone);
-        localStorage.setItem('rememberedMethod', loginMethod);
-        localStorage.setItem('rememberedUserType', userType);
-      } else {
-        // Clear remembered credentials if not checked
-        localStorage.removeItem('rememberedCredential');
-        localStorage.removeItem('rememberedMethod');
-        localStorage.removeItem('rememberedUserType');
-      }
-      
-      toast({
-        title: "Login Successful",
-        description: "Welcome back to Annadata Harmony!",
-      });
-      
-      // Redirect based on user role from API response
-      navigate(`/dashboard/${data.user.role}`);
-    } catch (error) {
-      toast({
-        title: "Login Failed",
-        description: error instanceof Error ? error.message : "Invalid credentials. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    // Redirect based on user role from API response
+    navigate(`/dashboard/${data.user.role}`);
+  } catch (error) {
+    toast({
+      title: "Login Failed",
+      description: error instanceof Error ? error.message : "Invalid credentials. Please try again.",
+      variant: "destructive",
+    });
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   // Check for remembered credentials on component mount
   useEffect(() => {
